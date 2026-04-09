@@ -219,3 +219,8 @@ curl -X POST http://localhost:5000/inventory \
 ##  Author
 
 **Zeerostock Assignment** — submitted as a company evaluation project.
+
+## Live Demo
+
+Frontend: https://your-frontend-link  
+Backend: https://zeerostock-backend-g14t.onrender.com
