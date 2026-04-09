@@ -7,7 +7,7 @@ import GroupedView  from "./components/GroupedView.jsx";
 import Spinner      from "./components/Spinner.jsx";
 
 
-const API = "";  
+const API = "https://zeerostock-backend-g14t.onrender.com";
 
 // ── Currency helper ───────────────────────────────────────────
 const formatCurrency = (n) =>
