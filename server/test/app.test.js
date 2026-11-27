@@ -48,3 +48,26 @@ test("protected inventory and reporting APIs reject anonymous requests", async (
     assert.match(body.message, /authentication required/i, path);
   }
 });
+
+test("authentication recovery endpoints are registered and validate payloads", async (t) => {
+  const server = app.listen(0);
+  await new Promise((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}/api/auth`;
+  const cases = [
+    ["/verify-email", { token: "short" }],
+    ["/resend-verification", { email: "not-an-email" }],
+    ["/forgot-password", { email: "not-an-email" }],
+    ["/verify-reset-otp", { email: "ganesh@example.com", otp: "abc" }],
+    ["/reset-password", { email: "ganesh@example.com", resetToken: "short", newPassword: "password123" }],
+  ];
+  for (const [path, payload] of cases) {
+    const response = await fetch(base + path, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    assert.equal(response.status, 400, path);
+  }
+});
