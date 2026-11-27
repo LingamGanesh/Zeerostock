@@ -13,8 +13,12 @@ const parseDate = (value, endOfDay = false) => {
 };
 
 const getStockReport = asyncHandler(async (req, res) => {
-  const type = ["all", "low", "out"].includes(req.query.type) ? req.query.type : "all";
-  const limit = Math.min(5000, Math.max(1, Number.parseInt(req.query.limit, 10) || 5000));
+  const requestedType = req.query.type || "all";
+  if (!["all", "low", "out"].includes(requestedType)) return res.status(400).json({ success: false, message: "type must be all, low, or out", data: null, errors: [] });
+  const type = requestedType;
+  const rawLimit = req.query.limit === undefined ? 5000 : Number(req.query.limit);
+  if (!Number.isInteger(rawLimit) || rawLimit < 1) return res.status(400).json({ success: false, message: "limit must be a positive integer", data: null, errors: [] });
+  const limit = Math.min(5000, rawLimit);
   const filter = { isActive: { $ne: false } };
   if (type === "low") filter.$expr = { $and: [{ $gt: ["$quantity", 0] }, { $lte: ["$quantity", 5] }] };
   if (type === "out") filter.quantity = 0;
@@ -56,11 +60,15 @@ const getMovementReport = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "The end date must be on or after the start date", data: null, errors: [] });
   }
 
-  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
+  const rawPage = req.query.page === undefined ? 1 : Number(req.query.page);
+  const rawLimit = req.query.limit === undefined ? 25 : Number(req.query.limit);
+  if (!Number.isInteger(rawPage) || rawPage < 1 || !Number.isInteger(rawLimit) || rawLimit < 1) return res.status(400).json({ success: false, message: "page and limit must be positive integers", data: null, errors: [] });
+  if (req.query.movementType && !["in", "out", "set"].includes(req.query.movementType)) return res.status(400).json({ success: false, message: "movementType must be in, out, or set", data: null, errors: [] });
+  const page = rawPage;
+  const limit = Math.min(100, rawLimit);
   const filter = {};
   if (from || to) filter.createdAt = { ...(from ? { $gte: from } : {}), ...(to ? { $lt: to } : {}) };
-  if (["in", "out", "set"].includes(req.query.movementType)) filter.movementType = req.query.movementType;
+  if (req.query.movementType) filter.movementType = req.query.movementType;
 
   const [movements, total] = await Promise.all([
     InventoryMovement.find(filter)
