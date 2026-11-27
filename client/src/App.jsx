@@ -224,17 +224,16 @@ function StockReportsPanel() {
     return () => { active = false; };
   }, [stockType]);
 
-  const loadMovements = useCallback(async () => {
+  useEffect(() => {
+    let active = true;
     setMovementLoading(true);
     setMovementError("");
-    try {
-      const result = await getMovementReport({ from, to, movementType, page: movementPage, limit: 25 });
-      setMovementData(result.data || { movements: [], pagination: null });
-    } catch (error) { setMovementError(error.message); }
-    finally { setMovementLoading(false); }
+    getMovementReport({ from, to, movementType, page: movementPage, limit: 25 })
+      .then((result) => { if (active) setMovementData(result.data || { movements: [], pagination: null }); })
+      .catch((error) => { if (active) setMovementError(error.message); })
+      .finally(() => { if (active) setMovementLoading(false); });
+    return () => { active = false; };
   }, [from, to, movementType, movementPage]);
-
-  useEffect(() => { loadMovements(); }, [loadMovements]);
 
   const stockItems = stockReport?.items || [];
   const movements = movementData.movements || [];
