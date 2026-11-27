@@ -25,7 +25,8 @@ async function request(path, options = {}, retry = true) {
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const error = new Error(payload?.message || `Request failed (${response.status})`);
+    const detail = Array.isArray(payload?.errors) ? payload.errors.map((entry) => entry.message || entry).join(", ") : "";
+    const error = new Error(detail || payload?.message || `Request failed (${response.status})`);
     error.status = response.status;
     error.details = payload?.errors || [];
     throw error;
@@ -80,8 +81,34 @@ export async function logout() {
   }
 }
 
-export async function getInventory({ q = "", page = 1, limit = 50 } = {}) {
+export async function getInventory({ q = "", page = 1, limit = 12, lowStock = false } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (q.trim()) params.set("q", q.trim());
+  if (lowStock) params.set("lowStock", "true");
   return request(`/api/v2/inventory?${params.toString()}`);
+}
+
+export async function getSuppliers() {
+  return request("/api/suppliers");
+}
+
+export async function createInventory(data) {
+  return request("/api/v2/inventory", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateInventory(id, data) {
+  return request(`/api/v2/inventory/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export async function archiveInventory(id) {
+  return request(`/api/v2/inventory/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function adjustInventory(id, data) {
+  return request(`/api/v2/inventory/${encodeURIComponent(id)}/adjustments`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getInventoryMovements(id, { page = 1, limit = 20 } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  return request(`/api/v2/inventory/${encodeURIComponent(id)}/movements?${params.toString()}`);
 }
