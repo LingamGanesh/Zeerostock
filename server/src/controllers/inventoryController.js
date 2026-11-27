@@ -14,8 +14,12 @@ const {
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const listInventory = asyncHandler(async (req, res) => {
-  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const requestedLimit = req.query.limit === undefined ? 20 : Number(req.query.limit);
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(requestedLimit) || requestedLimit < 1) {
+    return res.status(400).json({ success: false, message: "page and limit must be positive integers", data: null, errors: [] });
+  }
+  const limit = Math.min(100, requestedLimit);
   const filter = { isActive: { $ne: false } };
   if (req.query.q) {
     const search = escapeRegex(String(req.query.q).trim().slice(0, 80));
@@ -122,8 +126,12 @@ const getInventoryMovements = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ success: false, message: "Invalid inventory ID", data: null, errors: [] });
   }
-  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const requestedLimit = req.query.limit === undefined ? 20 : Number(req.query.limit);
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(requestedLimit) || requestedLimit < 1) {
+    return res.status(400).json({ success: false, message: "page and limit must be positive integers", data: null, errors: [] });
+  }
+  const limit = Math.min(100, requestedLimit);
   const filter = { inventory: req.params.id };
   const [movements, total] = await Promise.all([
     InventoryMovement.find(filter).populate("performedBy", "name email")
