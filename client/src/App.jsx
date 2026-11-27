@@ -4,6 +4,8 @@ import Spinner from "./components/Spinner.jsx";
 import {
   adjustInventory,
   archiveInventory,
+  archiveSupplier,
+  createSupplier,
   createInventory,
   getInventory,
   getInventoryMovements,
@@ -13,6 +15,7 @@ import {
   logout,
   refreshSession,
   updateInventory,
+  updateSupplier,
 } from "./lib/api.js";
 
 const money = (value) => new Intl.NumberFormat("en-IN", {
@@ -119,6 +122,33 @@ function StockDialog({ item, onClose, onSave, busy, error }) {
   );
 }
 
+function SupplierDialog({ supplier, onClose, onSave, busy, error }) {
+  const [form, setForm] = useState(() => ({
+    name: supplier?.name || "",
+    contactEmail: supplier?.contactEmail || "",
+    phone: supplier?.phone || "",
+    address: supplier?.address || "",
+    country: supplier?.country || "India",
+  }));
+  const set = (key, value) => setForm((previous) => ({ ...previous, [key]: value }));
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center overflow-y-auto" role="presentation">
+      <form onSubmit={(event) => { event.preventDefault(); onSave(form); }} className="card w-full max-w-xl p-6 flex flex-col gap-4 my-auto" role="dialog" aria-modal="true" aria-labelledby="supplier-dialog-title">
+        <div className="flex justify-between items-start"><div><p className="text-xs uppercase tracking-widest text-indigo-300">Supplier directory</p><h2 id="supplier-dialog-title" className="font-display text-2xl text-slate-100 mt-1">{supplier ? "Edit supplier" : "Add supplier"}</h2></div><button type="button" onClick={onClose} className="text-slate-400 text-xl" aria-label="Close">×</button></div>
+        {error && <p role="alert" className="rounded-lg border border-red-900 bg-red-950/40 p-3 text-sm text-red-300">{error}</p>}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Supplier name"><TextInput required minLength={2} maxLength={100} value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          <Field label="Contact email"><TextInput required type="email" maxLength={254} value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} /></Field>
+          <Field label="Phone"><TextInput value={form.phone} maxLength={20} onChange={(e) => set("phone", e.target.value)} /></Field>
+          <Field label="Country"><TextInput required minLength={2} maxLength={80} value={form.country} onChange={(e) => set("country", e.target.value)} /></Field>
+        </div>
+        <Field label="Address"><TextInput maxLength={250} value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
+        <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg border border-surface-border px-4 py-2 text-slate-300">Cancel</button><button disabled={busy} className="rounded-lg bg-indigo-600 px-5 py-2 text-white font-semibold disabled:opacity-50">{busy ? "Saving…" : "Save supplier"}</button></div>
+      </form>
+    </div>
+  );
+}
+
 function MovementsDialog({ item, onClose }) {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -162,6 +192,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [dialog, setDialog] = useState(null);
+  const [supplierDialog, setSupplierDialog] = useState(null);
   const [saving, setSaving] = useState(false);
   const [dialogError, setDialogError] = useState("");
 
@@ -283,6 +314,32 @@ export default function App() {
     finally { setSaving(false); }
   };
 
+  const saveSupplier = async (form) => {
+    setSaving(true); setDialogError("");
+    try {
+      const payload = { name: form.name.trim(), contactEmail: form.contactEmail.trim().toLowerCase(), phone: form.phone.trim(), address: form.address.trim(), country: form.country.trim() };
+      if (supplierDialog) {
+        await updateSupplier(supplierDialog._id, payload);
+        setNotice("Supplier updated successfully.");
+      } else {
+        await createSupplier(payload);
+        setNotice("Supplier created successfully.");
+      }
+      setSupplierDialog(null);
+      await loadSuppliers();
+    } catch (err) { setDialogError(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleArchiveSupplier = async (supplier) => {
+    if (!window.confirm(`Archive supplier "${supplier.name}"?`)) return;
+    try {
+      await archiveSupplier(supplier._id);
+      setNotice("Supplier archived successfully.");
+      await loadSuppliers();
+    } catch (err) { setError(err.message); }
+  };
+
   const handleArchive = async (item) => {
     if (!window.confirm(`Archive "${item.product_name}"? It will be removed from active inventory but its movement history will remain.`)) return;
     try {
@@ -344,6 +401,20 @@ export default function App() {
           </div>
         </section>}
 
+        <section className="card p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div><h3 className="font-display text-xl text-slate-100">Supplier management</h3><p className="text-sm text-slate-500 mt-1">{suppliers.length} active suppliers · Manage contacts and sourcing partners</p></div>
+            <button onClick={() => { setDialogError(""); setSupplierDialog(null); setSupplierDialog({}); }} className="rounded-lg border border-indigo-500/50 px-4 py-2 text-sm text-indigo-300 hover:bg-indigo-950/40">＋ Add supplier</button>
+          </div>
+          {suppliers.length === 0 ? <p className="text-sm text-slate-500 py-3">No active suppliers yet. Add a supplier to start registering products.</p> : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {suppliers.map((supplier) => <div key={supplier._id} className="rounded-lg border border-surface-border bg-surface p-4">
+              <div className="flex justify-between gap-3"><div className="min-w-0"><p className="font-semibold text-slate-100 truncate">{supplier.name}</p><p className="text-xs text-slate-400 mt-1 break-all">{supplier.contactEmail}</p></div><span className="text-xs text-slate-500">{supplier.country || "India"}</span></div>
+              {supplier.phone && <p className="text-xs text-slate-500 mt-2">{supplier.phone}</p>}
+              <div className="flex gap-2 mt-3"><button onClick={() => { setDialogError(""); setSupplierDialog(supplier); }} className="text-xs text-indigo-300 border border-surface-border rounded-md px-3 py-1.5">Edit</button><button onClick={() => handleArchiveSupplier(supplier)} className="text-xs text-red-300 border border-surface-border rounded-md px-3 py-1.5">Archive</button></div>
+            </div>)}
+          </div>}
+        </section>
+
         <section className="card p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
           <form onSubmit={applySearch} className="flex gap-2 flex-1">
             <TextInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product name or SKU…" />
@@ -379,6 +450,7 @@ export default function App() {
       {dialog?.type === "create" || dialog?.type === "edit" ? <ProductDialog item={dialog.type === "edit" ? dialog.item : null} suppliers={suppliers} onClose={() => setDialog(null)} onSave={saveProduct} busy={saving} error={dialogError} /> : null}
       {dialog?.type === "stock" ? <StockDialog item={dialog.item} onClose={() => setDialog(null)} onSave={saveAdjustment} busy={saving} error={dialogError} /> : null}
       {dialog?.type === "movements" ? <MovementsDialog item={dialog.item} onClose={() => setDialog(null)} /> : null}
+      {supplierDialog !== null ? <SupplierDialog supplier={supplierDialog._id ? supplierDialog : null} onClose={() => setSupplierDialog(null)} onSave={saveSupplier} busy={saving} error={dialogError} /> : null}
     </div>
   );
 }
