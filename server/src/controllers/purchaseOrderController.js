@@ -65,44 +65,66 @@ const approvePurchaseOrder = asyncHandler(async (req, res) => {
 
 const receivePurchaseOrder = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return fail(res, 400, "Invalid purchase order ID");
-  const order = await PurchaseOrder.findById(req.params.id);
-  if (!order) return fail(res, 404, "Purchase order not found");
-  if (!["approved", "partially_received"].includes(order.status)) return fail(res, 409, "Only approved purchase orders can receive stock");
   const receivedLines = req.body?.items;
   if (!Array.isArray(receivedLines) || !receivedLines.length) return fail(res, 400, "Provide at least one received item");
-  const updates = [];
-  for (const received of receivedLines) {
-    const line = order.items.id(received.itemId);
-    const quantity = Number(received.quantity);
-    if (!line || !Number.isSafeInteger(quantity) || quantity < 1 || line.receivedQuantity + quantity > line.orderedQuantity) {
-      return fail(res, 400, "Received quantities must be positive whole numbers and cannot exceed the remaining ordered quantity");
-    }
-    if (updates.some((entry) => String(entry.line._id) === String(line._id))) return fail(res, 400, "Do not submit the same order line more than once");
-    updates.push({ line, quantity });
-  }
 
-  // Each stock increment is committed together with its audit movement. If a later
-  // line fails, already received lines remain accurately recorded for safe retry.
-  for (const entry of updates) {
-    await adjustStock({
-      inventoryId: entry.line.inventory,
-      direction: "in",
-      quantity: entry.quantity,
-      reason: "Purchase order receipt",
-      reference: order.orderNumber,
-      userId: req.user._id,
+  const session = await mongoose.startSession();
+  let completedOrder;
+  try {
+    await session.withTransaction(async () => {
+      const order = await PurchaseOrder.findById(req.params.id).session(session);
+      if (!order) {
+        const error = new Error("Purchase order not found");
+        error.statusCode = 404;
+        throw error;
+      }
+      if (!["approved", "partially_received"].includes(order.status)) {
+        const error = new Error("Only approved purchase orders can receive stock");
+        error.statusCode = 409;
+        throw error;
+      }
+      const updates = [];
+      for (const received of receivedLines) {
+        const line = order.items.id(received.itemId);
+        const quantity = Number(received.quantity);
+        if (!line || !Number.isSafeInteger(quantity) || quantity < 1 ||
+            line.receivedQuantity + quantity > line.orderedQuantity) {
+          const error = new Error("Received quantities must be positive whole numbers and cannot exceed the remaining ordered quantity");
+          error.statusCode = 400;
+          throw error;
+        }
+        if (updates.some((entry) => String(entry.line._id) === String(line._id))) {
+          const error = new Error("Do not submit the same order line more than once");
+          error.statusCode = 400;
+          throw error;
+        }
+        updates.push({ line, quantity });
+      }
+
+      for (const entry of updates) {
+        await adjustStock({
+          inventoryId: entry.line.inventory, direction: "in", quantity: entry.quantity,
+          reason: "Purchase order receipt", reference: order.orderNumber,
+          userId: req.user._id, session,
+        });
+        entry.line.receivedQuantity += entry.quantity;
+      }
+      order.status = order.items.every((line) => line.receivedQuantity === line.orderedQuantity)
+        ? "completed" : "partially_received";
+      await order.save({ session });
+      completedOrder = order;
     });
-    entry.line.receivedQuantity += entry.quantity;
-    // Persist each successful receipt immediately so a later line failure can
-    // never cause an already-added stock quantity to be received twice on retry.
-    order.status = "partially_received";
-    await order.save();
+    await completedOrder.populate("supplier", "name contactEmail country");
+    return sendSuccess(res, { message: "Received stock and recorded inventory movements", data: completedOrder });
+  } catch (error) {
+    if (/transaction numbers are only allowed|transaction is not supported|replica set/i.test(error.message || "")) {
+      error.statusCode = 503;
+      error.message = "Purchase order receiving requires MongoDB running as a replica set or MongoDB Atlas.";
+    }
+    throw error;
+  } finally {
+    await session.endSession();
   }
-  const complete = order.items.every((line) => line.receivedQuantity === line.orderedQuantity);
-  order.status = complete ? "completed" : "partially_received";
-  await order.save();
-  await order.populate("supplier", "name contactEmail country");
-  return sendSuccess(res, { message: "Received stock and recorded inventory movements", data: order });
 });
 
 module.exports = { listPurchaseOrders, createPurchaseOrder, approvePurchaseOrder, receivePurchaseOrder };
