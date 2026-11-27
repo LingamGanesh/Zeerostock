@@ -8,7 +8,7 @@ const formatCurrency = (n) =>
 const StockBadge = ({ qty }) => {
   const level =
     qty === 0 ? { label: "Out of Stock", cls: "bg-red-900/50 text-red-300 border-red-800" }
-    : qty <= 10 ? { label: "Low Stock",  cls: "bg-amber-900/50 text-amber-300 border-amber-800" }
+    : qty <= 5 ? { label: "Low Stock",  cls: "bg-amber-900/50 text-amber-300 border-amber-800" }
     :             { label: "In Stock",   cls: "bg-emerald-900/50 text-emerald-300 border-emerald-800" };
 
   return (
