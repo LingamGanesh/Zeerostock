@@ -22,7 +22,9 @@ app.use(helmet());
 app.use(cors({
   origin(origin, callback) {
     if (!origin || config.clientOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error("Origin is not allowed by CORS"));
+    const error = new Error("Origin is not allowed by CORS");
+    error.statusCode = 403;
+    return callback(error);
   },
   credentials: true,
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
@@ -47,7 +49,6 @@ const authLimiter = rateLimit({
 });
 app.use("/api/auth", authLimiter, authRoutes);
 
-// Retain the original URLs during migration; writes now require staff authentication.
 const protectInventoryWrites = (req, res, next) => {
   if (req.method === "GET") return next();
   return authenticate(req, res, (error) => {

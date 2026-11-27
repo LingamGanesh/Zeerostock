@@ -10,6 +10,6 @@ function errorHandler(error, req, res, next) {
   if (error.code === 11000) return res.status(409).json({ success: false, message: "A record with this value already exists", data: null, errors: [] });
   const statusCode = Number.isInteger(error.statusCode) ? error.statusCode : 500;
   return res.status(statusCode).json({ success: false, message: statusCode >= 500 ? "Internal server error" : error.message,
-    data: null, errors: error.errors || [] });
+    data: null, errors: [] });
 }
 module.exports = errorHandler;
