@@ -7,9 +7,12 @@ async function adjustStock({ inventoryId, direction, quantity, reason, reference
   let updatedInventory;
   try {
     await session.withTransaction(async () => {
-      const inventory = await Inventory.findById(inventoryId).session(session);
+      const inventory = await Inventory.findOne({
+        _id: inventoryId,
+        isActive: { $ne: false },
+      }).session(session);
       if (!inventory) {
-        const error = new Error("Inventory item not found");
+        const error = new Error("Active inventory item not found");
         error.statusCode = 404;
         throw error;
       }
@@ -27,7 +30,7 @@ async function adjustStock({ inventoryId, direction, quantity, reason, reference
       }
 
       const result = await Inventory.updateOne(
-        { _id: inventoryId, quantity: previousQuantity },
+        { _id: inventoryId, isActive: { $ne: false }, quantity: previousQuantity },
         { $set: { quantity: newQuantity } },
         { session, runValidators: true }
       );
@@ -40,7 +43,7 @@ async function adjustStock({ inventoryId, direction, quantity, reason, reference
       await InventoryMovement.create([{
         inventory: inventoryId,
         movementType: direction,
-        quantity: Math.abs(newQuantity - previousQuantity) || quantity,
+        quantity: Math.abs(newQuantity - previousQuantity),
         previousQuantity,
         newQuantity,
         reason,
