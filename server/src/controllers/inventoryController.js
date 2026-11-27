@@ -52,8 +52,9 @@ const getInventoryItem = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ success: false, message: "Invalid inventory ID", data: null, errors: [] });
   }
-  const item = await Inventory.findById(req.params.id).populate("supplier", "name contactEmail country");
-  if (!item) return res.status(404).json({ success: false, message: "Inventory item not found", data: null, errors: [] });
+  const item = await Inventory.findOne({ _id: req.params.id, isActive: { $ne: false } })
+    .populate("supplier", "name contactEmail country");
+  if (!item) return res.status(404).json({ success: false, message: "Active inventory item not found", data: null, errors: [] });
   return sendSuccess(res, { data: item });
 });
 
@@ -82,10 +83,12 @@ const updateInventoryItem = asyncHandler(async (req, res) => {
   if (parsed.data.supplier && !(await Supplier.exists({ _id: parsed.data.supplier }))) {
     return res.status(400).json({ success: false, message: "Selected supplier does not exist", data: null, errors: [] });
   }
-  const item = await Inventory.findByIdAndUpdate(req.params.id, { $set: parsed.data }, {
-    new: true, runValidators: true,
-  }).populate("supplier", "name contactEmail country");
-  if (!item) return res.status(404).json({ success: false, message: "Inventory item not found", data: null, errors: [] });
+  const item = await Inventory.findOneAndUpdate(
+    { _id: req.params.id, isActive: { $ne: false } },
+    { $set: parsed.data },
+    { new: true, runValidators: true }
+  ).populate("supplier", "name contactEmail country");
+  if (!item) return res.status(404).json({ success: false, message: "Active inventory item not found", data: null, errors: [] });
   return sendSuccess(res, { message: "Inventory item updated", data: item });
 });
 
