@@ -22,10 +22,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: server/package-lock.json
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       - name: Check JavaScript syntax
         run: npm run check
       - name: Run validation tests
