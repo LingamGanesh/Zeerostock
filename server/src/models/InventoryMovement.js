@@ -26,5 +26,6 @@ const inventoryMovementSchema = new mongoose.Schema({
 
 inventoryMovementSchema.index({ inventory: 1, createdAt: -1 });
 inventoryMovementSchema.index({ performedBy: 1, createdAt: -1 });
+inventoryMovementSchema.index({ createdAt: -1, _id: -1 });
 
 module.exports = mongoose.model("InventoryMovement", inventoryMovementSchema);
