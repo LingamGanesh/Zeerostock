@@ -39,6 +39,7 @@ const inventorySchema = new mongoose.Schema(
       ref: "Supplier",        
       required: [true, "Supplier reference is required"],
     },
+    isActive: { type: Boolean, default: true, index: true },
     description: {
       type: String,
       trim: true,
