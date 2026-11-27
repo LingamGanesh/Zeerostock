@@ -1,8 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const Inventory = require("../../models/Inventory");
-const InventoryMovement = require("../models/InventoryMovement");
-const { adjustStock } = require("../services/inventoryService");
+const Inventory = require("../models/Inventory");
+const InventoryMovement = require("../src/models/InventoryMovement");
+const { adjustStock } = require("../src/services/inventoryService");
 
 test("setting stock to its current balance is a no-op and creates no movement", async () => {
   const originalFindOne = Inventory.findOne;
