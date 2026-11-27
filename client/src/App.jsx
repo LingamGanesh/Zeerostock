@@ -493,6 +493,29 @@ export default function App() {
           </div>
         </section>}
 
+        {dashboard?.purchaseAnalytics && (() => {
+          const report = dashboard.purchaseAnalytics;
+          const totals = report.totals || {};
+          const maxMonth = Math.max(1, ...(report.monthly || []).map((entry) => entry.orderedValue));
+          return <section className="card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-5"><div><h3 className="font-display text-xl text-slate-100">Purchase analytics</h3><p className="text-xs text-slate-500 mt-1">Order value, receipts and supplier performance</p></div><span className="text-xs text-slate-500">{totals.orderCount || 0} total orders</span></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+              <div className="rounded-lg bg-surface border border-surface-border p-4"><p className="text-xs text-slate-500 uppercase">Ordered value</p><p className="font-display text-xl text-slate-100 mt-2">{money(totals.orderedValue)}</p></div>
+              <div className="rounded-lg bg-surface border border-surface-border p-4"><p className="text-xs text-slate-500 uppercase">Received purchase value</p><p className="font-display text-xl text-emerald-300 mt-2">{money(totals.receivedValue)}</p></div>
+              <div className="rounded-lg bg-surface border border-surface-border p-4"><p className="text-xs text-slate-500 uppercase">Outstanding order value</p><p className="font-display text-xl text-amber-300 mt-2">{money(totals.pendingValue)}</p></div>
+            </div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div><h4 className="text-sm font-semibold text-slate-200 mb-3">Monthly purchasing · last 6 months</h4>
+                {(report.monthly || []).length ? <div className="space-y-3">{report.monthly.map((month) => <div key={month.month}><div className="flex justify-between text-xs mb-1"><span className="text-slate-400">{new Date(month.month + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: "UTC" })} · {month.orders} orders</span><span className="text-slate-200">{money(month.orderedValue)}</span></div><div className="h-2 rounded-full bg-surface overflow-hidden"><div className="h-full rounded-full bg-indigo-500" style={{ width: (Math.min(100, month.orderedValue / maxMonth * 100)) + "%" }} /></div></div>)}</div> : <p className="text-sm text-slate-500">No purchases in this period.</p>}
+              </div>
+              <div><h4 className="text-sm font-semibold text-slate-200 mb-3">Supplier-wise purchases · top 10</h4>
+                {(report.suppliers || []).length ? <div className="space-y-2">{report.suppliers.map((supplier) => <div key={supplier.supplierId || supplier.supplierName} className="flex items-center justify-between gap-3 border-b border-surface-border pb-2"><div className="min-w-0"><p className="text-sm text-slate-200 truncate">{supplier.supplierName}</p><p className="text-xs text-slate-500">{supplier.orders} orders · received {money(supplier.receivedValue)}</p></div><p className="text-sm font-semibold text-indigo-300 whitespace-nowrap">{money(supplier.orderedValue)}</p></div>)}</div> : <p className="text-sm text-slate-500">No supplier purchases yet.</p>}
+              </div>
+            </div>
+            {(report.statuses || []).length > 0 && <div className="flex flex-wrap gap-2 mt-5">{report.statuses.map((entry) => <span key={entry.status} className="rounded-full border border-surface-border px-3 py-1 text-xs text-slate-300 capitalize">{entry.status.replace("_", " ")}: {entry.count}</span>)}</div>}
+          </section>;
+        })()}
+
         <section className="card p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div><h3 className="font-display text-xl text-slate-100">Supplier management</h3><p className="text-sm text-slate-500 mt-1">{suppliers.length} active suppliers · Manage contacts and sourcing partners</p></div>
