@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { registerSchema, loginSchema } = require("../src/validators/authValidators");
+const { registerSchema, loginSchema, emailSchema, verifyEmailSchema, verifyOtpSchema, resetPasswordSchema } = require("../src/validators/authValidators");
 const {
   createInventorySchema,
   updateInventorySchema,
@@ -36,6 +36,21 @@ test("login accepts valid credentials and rejects extra fields", () => {
   }).success, true);
   assert.equal(loginSchema.safeParse({
     email: "ganesh@example.com", password: "password123", role: "admin",
+  }).success, false);
+});
+
+
+test("email verification and password recovery schemas validate all required inputs", () => {
+  assert.equal(emailSchema.safeParse({ email: "ganesh@example.com" }).success, true);
+  assert.equal(verifyEmailSchema.safeParse({ token: "a".repeat(64) }).success, true);
+  assert.equal(verifyEmailSchema.safeParse({ token: "short" }).success, false);
+  assert.equal(verifyOtpSchema.safeParse({ email: "ganesh@example.com", otp: "123456" }).success, true);
+  assert.equal(verifyOtpSchema.safeParse({ email: "ganesh@example.com", otp: "12ab56" }).success, false);
+  assert.equal(resetPasswordSchema.safeParse({
+    email: "ganesh@example.com", resetToken: "b".repeat(64), newPassword: "newPassword123",
+  }).success, true);
+  assert.equal(resetPasswordSchema.safeParse({
+    email: "ganesh@example.com", resetToken: "b".repeat(64), newPassword: "short",
   }).success, false);
 });
 
