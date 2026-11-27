@@ -128,3 +128,21 @@ export async function updateSupplier(id, data) {
 export async function archiveSupplier(id) {
   return request(`/api/suppliers/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
+
+export async function getPurchaseOrders({ page = 1, limit = 20, status = "" } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set("status", status);
+  return request(`/api/v2/purchase-orders?${params.toString()}`);
+}
+
+export async function createPurchaseOrder(data) {
+  return request("/api/v2/purchase-orders", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function approvePurchaseOrder(id) {
+  return request(`/api/v2/purchase-orders/${encodeURIComponent(id)}/approve`, { method: "POST" });
+}
+
+export async function receivePurchaseOrder(id, items) {
+  return request(`/api/v2/purchase-orders/${encodeURIComponent(id)}/receive`, { method: "POST", body: JSON.stringify({ items }) });
+}
