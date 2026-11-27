@@ -57,17 +57,10 @@ app.use("/api/v2/dashboard", authenticate, (req, res, next) => authorize("admin"
 app.use("/api/v2/purchase-orders", authenticate, (req, res, next) => authorize("admin", "manager")(req, res, next), purchaseOrderRoutes);
 app.use("/api/v2/reports", authenticate, (req, res, next) => authorize("admin", "manager")(req, res, next), reportRoutes);
 
-const protectInventoryWrites = (req, res, next) => {
-  if (req.method === "GET") return next();
-  return authenticate(req, res, (error) => {
-    if (error) return next(error);
-    return authorize("admin", "manager")(req, res, next);
-  });
-};
-app.use("/inventory", protectInventoryWrites, inventoryRoutes);
-app.use("/supplier", authenticate, (req, res, next) => authorize("admin", "manager")(req, res, next), supplierRoutes);
-app.use("/api/inventory", protectInventoryWrites, inventoryRoutes);
-app.use("/api/suppliers", authenticate, (req, res, next) => authorize("admin", "manager")(req, res, next), supplierRoutes);
+app.use("/inventory", authenticate, authorize("admin", "manager"), inventoryRoutes);
+app.use("/supplier", authenticate, authorize("admin", "manager"), supplierRoutes);
+app.use("/api/inventory", authenticate, authorize("admin", "manager"), inventoryRoutes);
+app.use("/api/suppliers", authenticate, authorize("admin", "manager"), supplierRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
