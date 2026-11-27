@@ -1,4 +1,4 @@
-name: Server CI
+name: Full-stack CI
 
 on:
   push:
@@ -23,12 +23,31 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: server/package.json
+          cache-dependency-path: server/package-lock.json
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Check JavaScript syntax
         run: npm run check
       - name: Run validation tests
         run: npm test
       - name: Check high and critical dependency vulnerabilities
         run: npm audit --audit-level=high
+
+  client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build React application
+        run: npm run build
