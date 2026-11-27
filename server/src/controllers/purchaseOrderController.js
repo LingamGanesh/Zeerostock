@@ -9,10 +9,17 @@ const { sendSuccess } = require("../utils/apiResponse");
 const fail = (res, statusCode, message) => res.status(statusCode).json({ success: false, message, data: null, errors: [] });
 
 const listPurchaseOrders = asyncHandler(async (req, res) => {
-  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const requestedLimit = req.query.limit === undefined ? 20 : Number(req.query.limit);
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(requestedLimit) || requestedLimit < 1) {
+    return fail(res, 400, "page and limit must be positive integers");
+  }
+  if (req.query.status && !["pending", "approved", "partially_received", "completed"].includes(req.query.status)) {
+    return fail(res, 400, "status must be pending, approved, partially_received, or completed");
+  }
+  const limit = Math.min(100, requestedLimit);
   const filter = {};
-  if (["pending", "approved", "partially_received", "completed"].includes(req.query.status)) filter.status = req.query.status;
+  if (req.query.status) filter.status = req.query.status;
   const [orders, total] = await Promise.all([
     PurchaseOrder.find(filter).populate("supplier", "name contactEmail country")
       .populate("createdBy", "name email").populate("approvedBy", "name email")
@@ -33,7 +40,8 @@ const createPurchaseOrder = asyncHandler(async (req, res) => {
   const normalized = [];
   const seen = new Set();
   for (const line of items) {
-    if (!mongoose.isValidObjectId(line.inventoryId) || !Number.isSafeInteger(Number(line.quantity)) || Number(line.quantity) < 1 ||
+    if (!line || typeof line !== "object" || !mongoose.isValidObjectId(line.inventoryId) ||
+        !Number.isSafeInteger(Number(line.quantity)) || Number(line.quantity) < 1 ||
         !Number.isFinite(Number(line.unitPrice)) || Number(line.unitPrice) < 0) {
       return fail(res, 400, "Each item needs a valid inventory ID, positive whole quantity and non-negative unit price");
     }
@@ -66,7 +74,10 @@ const approvePurchaseOrder = asyncHandler(async (req, res) => {
 const receivePurchaseOrder = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return fail(res, 400, "Invalid purchase order ID");
   const receivedLines = req.body?.items;
-  if (!Array.isArray(receivedLines) || !receivedLines.length) return fail(res, 400, "Provide at least one received item");
+  if (!Array.isArray(receivedLines) || !receivedLines.length || receivedLines.length > 100 ||
+      receivedLines.some((line) => !line || typeof line !== "object" || Array.isArray(line))) {
+    return fail(res, 400, "Provide 1–100 valid received items");
+  }
 
   const session = await mongoose.startSession();
   let completedOrder;
