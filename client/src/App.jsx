@@ -160,7 +160,7 @@ function LoginPanel({ onLogin }) {
             {mode === "otp" && <button type="button" onClick={() => changeMode("forgot")} className="text-indigo-300">Request another code</button>}
             {mode === "reset" && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Cancel</button>}
             {mode === "verify-pending" && <><button type="button" onClick={() => changeMode("resend")} className="text-indigo-300">Resend verification link</button><button type="button" onClick={() => changeMode("login")} className="text-slate-300">Back to sign in</button></>}
-            {mode === "verify" && !verificationToken && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Back to sign in</button>}
+            {mode === "verify" && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Back to sign in</button>}
           </div>
           <p className="text-center text-xs text-slate-600 pt-1">Protected access · Secure session management</p>
         </form>
