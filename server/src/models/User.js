@@ -8,6 +8,12 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ["admin", "manager", "user"], default: "user", required: true },
   isBlocked: { type: Boolean, default: false, index: true },
   isEmailVerified: { type: Boolean, default: false },
+  emailVerificationTokenHash: { type: String, select: false },
+  emailVerificationExpiresAt: { type: Date, select: false },
+  passwordResetOtpHash: { type: String, select: false },
+  passwordResetOtpExpiresAt: { type: Date, select: false },
+  passwordResetTokenHash: { type: String, select: false },
+  passwordResetTokenExpiresAt: { type: Date, select: false },
   deletedAt: { type: Date, default: null, index: true },
 }, { timestamps: true });
 
