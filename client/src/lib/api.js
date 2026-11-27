@@ -112,3 +112,7 @@ export async function getInventoryMovements(id, { page = 1, limit = 20 } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   return request(`/api/v2/inventory/${encodeURIComponent(id)}/movements?${params.toString()}`);
 }
+
+export async function getDashboardSummary() {
+  return request("/api/v2/dashboard/summary");
+}
