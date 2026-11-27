@@ -64,7 +64,7 @@ const createInventoryItem = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Validation failed", data: null,
       errors: parsed.error.issues.map((issue) => ({ field: issue.path.join("."), message: issue.message })) });
   }
-  const supplier = await Supplier.findById(parsed.data.supplier);
+  const supplier = await Supplier.findOne({ _id: parsed.data.supplier, isActive: true });
   if (!supplier) return res.status(400).json({ success: false, message: "Selected supplier does not exist", data: null, errors: [] });
   const item = await Inventory.create(parsed.data);
   await item.populate("supplier", "name contactEmail country");
@@ -80,7 +80,7 @@ const updateInventoryItem = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Validation failed", data: null,
       errors: parsed.error.issues.map((issue) => ({ field: issue.path.join("."), message: issue.message })) });
   }
-  if (parsed.data.supplier && !(await Supplier.exists({ _id: parsed.data.supplier }))) {
+  if (parsed.data.supplier && !(await Supplier.exists({ _id: parsed.data.supplier, isActive: true }))) {
     return res.status(400).json({ success: false, message: "Selected supplier does not exist", data: null, errors: [] });
   }
   const item = await Inventory.findOneAndUpdate(
