@@ -146,3 +146,16 @@ export async function approvePurchaseOrder(id) {
 export async function receivePurchaseOrder(id, items) {
   return request(`/api/v2/purchase-orders/${encodeURIComponent(id)}/receive`, { method: "POST", body: JSON.stringify({ items }) });
 }
+
+export async function getStockReport({ type = "all", limit = 5000 } = {}) {
+  const params = new URLSearchParams({ type, limit: String(limit) });
+  return request(`/api/v2/reports/stock?${params.toString()}`);
+}
+
+export async function getMovementReport({ from = "", to = "", movementType = "", page = 1, limit = 25 } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  if (movementType) params.set("movementType", movementType);
+  return request(`/api/v2/reports/movements?${params.toString()}`);
+}
