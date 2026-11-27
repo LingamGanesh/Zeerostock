@@ -57,7 +57,7 @@ If Docker Desktop is installed, run these commands in PowerShell:
 
 ```powershell
 docker run -d --name zeerostock-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
-docker exec zeerostock-mongo mongosh --eval "rs.initiate()"
+docker exec zeerostock-mongo mongosh --eval "rs.initiate({_id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }]})"
 ```
 
 Wait a few seconds for the replica set to elect its primary. If the container already exists, start it with `docker start zeerostock-mongo` and run the `rs.initiate()` command only if the replica set has not already been initialized.
