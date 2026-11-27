@@ -5,6 +5,7 @@ const RefreshToken = require("../models/RefreshToken");
 const config = require("../config/env");
 const { signAccessToken, signRefreshToken, hashToken } = require("../utils/tokens");
 const { sendEmail } = require("../utils/mailer");
+const logger = require("../utils/logger");
 
 function publicUser(user) {
   return { id: user._id, name: user.name, email: user.email, role: user.role, isEmailVerified: user.isEmailVerified };
@@ -54,7 +55,10 @@ async function verifyEmail(rawToken) {
 }
 async function resendVerification(emailInput) {
   const user = await User.findOne({ email: emailInput.toLowerCase(), deletedAt: null });
-  if (user && !user.isEmailVerified) await sendVerification(user);
+  if (user && !user.isEmailVerified) {
+    try { await sendVerification(user); }
+    catch (error) { logger.warn("Verification email delivery failed", { message: error.message }); }
+  }
   return { message: "If an unverified account exists for that email, a verification link has been sent." };
 }
 async function login(input, req) {
@@ -95,9 +99,14 @@ async function forgotPassword(emailInput) {
     user.passwordResetTokenHash = undefined;
     user.passwordResetTokenExpiresAt = undefined;
     await user.save();
-    await sendEmail({ to: user.email, subject: "Your Zeerostock password reset code",
-      text: "Your password reset code is " + otp + ". It expires in 10 minutes. If you did not request this, ignore this email.",
-      html: "<p>Your Zeerostock password reset code is:</p><p style=\"font-size:28px;font-weight:bold;letter-spacing:8px\">" + otp + "</p><p>It expires in 10 minutes. If you did not request this, ignore this email.</p>" });
+    try {
+      await sendEmail({ to: user.email, subject: "Your Zeerostock password reset code",
+        text: "Your password reset code is " + otp + ". It expires in 10 minutes. If you did not request this, ignore this email.",
+        html: "<p>Your Zeerostock password reset code is:</p><p style=\"font-size:28px;font-weight:bold;letter-spacing:8px\">" + otp + "</p><p>It expires in 10 minutes. If you did not request this, ignore this email.</p>" });
+    } catch (error) {
+      // Keep the public response identical for existing and unknown email addresses.
+      logger.warn("Password reset email delivery failed", { message: error.message });
+    }
   }
   return { message: "If an account exists for that email, a password reset code has been sent." };
 }
