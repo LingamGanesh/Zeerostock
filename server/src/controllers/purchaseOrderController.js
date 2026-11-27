@@ -93,6 +93,10 @@ const receivePurchaseOrder = asyncHandler(async (req, res) => {
       userId: req.user._id,
     });
     entry.line.receivedQuantity += entry.quantity;
+    // Persist each successful receipt immediately so a later line failure can
+    // never cause an already-added stock quantity to be received twice on retry.
+    order.status = "partially_received";
+    await order.save();
   }
   const complete = order.items.every((line) => line.receivedQuantity === line.orderedQuantity);
   order.status = complete ? "completed" : "partially_received";
