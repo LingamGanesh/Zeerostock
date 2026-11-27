@@ -16,6 +16,10 @@ import {
   refreshSession,
   updateInventory,
   updateSupplier,
+  getPurchaseOrders,
+  createPurchaseOrder,
+  approvePurchaseOrder,
+  receivePurchaseOrder,
 } from "./lib/api.js";
 
 const money = (value) => new Intl.NumberFormat("en-IN", {
@@ -172,6 +176,94 @@ function MovementsDialog({ item, onClose }) {
         )}
       </section>
     </div>
+  );
+}
+
+
+function PurchaseOrdersPanel({ inventory, suppliers, onChanged }) {
+  const [orders, setOrders] = useState([]);
+  const [supplierId, setSupplierId] = useState("");
+  const [lines, setLines] = useState([{ inventoryId: "", quantity: "1", unitPrice: "" }]);
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const result = await getPurchaseOrders({ limit: 50 });
+      setOrders(result.data?.orders || []);
+    } catch (err) { setError(err.message); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const updateLine = (index, key, value) => setLines((current) => current.map((line, i) => i === index ? { ...line, [key]: value } : line));
+  const addLine = () => setLines((current) => [...current, { inventoryId: "", quantity: "1", unitPrice: "" }]);
+  const removeLine = (index) => setLines((current) => current.filter((_, i) => i !== index));
+
+  const submit = async (event) => {
+    event.preventDefault(); setBusy(true); setError(""); setNotice("");
+    try {
+      await createPurchaseOrder({ supplier: supplierId, notes, items: lines.map((line) => ({
+        inventoryId: line.inventoryId, quantity: Number(line.quantity), unitPrice: Number(line.unitPrice),
+      })) });
+      setLines([{ inventoryId: "", quantity: "1", unitPrice: "" }]); setNotes("");
+      setNotice("Purchase order created."); await load();
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const act = async (operation, order) => {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (operation === "approve") await approvePurchaseOrder(order._id);
+      else await receivePurchaseOrder(order._id, order.items.filter((line) => line.receivedQuantity < line.orderedQuantity)
+        .map((line) => ({ itemId: line._id, quantity: line.orderedQuantity - line.receivedQuantity })));
+      setNotice(operation === "approve" ? "Purchase order approved." : "Remaining quantities received and stock movements recorded.");
+      await load(); if (operation === "receive") onChanged();
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <section className="card p-5 flex flex-col gap-5">
+      <div><h3 className="font-display text-xl text-slate-100">Purchase orders</h3><p className="text-sm text-slate-500 mt-1">Create supplier orders, approve them and receive stock into inventory.</p></div>
+      {error && <p role="alert" className="rounded-lg border border-red-900 bg-red-950/30 p-3 text-sm text-red-300">{error}</p>}
+      {notice && <p role="status" className="rounded-lg border border-emerald-900 bg-emerald-950/30 p-3 text-sm text-emerald-300">{notice}</p>}
+      <form onSubmit={submit} className="rounded-xl border border-surface-border p-4 flex flex-col gap-3">
+        <h4 className="font-semibold text-slate-200">Create purchase order</h4>
+        <Field label="Supplier">
+          <select required value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setLines([{ inventoryId: "", quantity: "1", unitPrice: "" }]); }} className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2.5 text-slate-100">
+            <option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier._id} value={supplier._id}>{supplier.name}</option>)}
+          </select>
+        </Field>
+        {lines.map((line, index) => {
+          const supplierProducts = inventory.filter((item) => (item.supplier?._id || item.supplier) === supplierId);
+          return <div key={index} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+            <Field label={`Product ${index + 1}`}><select required value={line.inventoryId} onChange={(e) => { const product = supplierProducts.find((item) => item._id === e.target.value); updateLine(index, "inventoryId", e.target.value); if (product) updateLine(index, "unitPrice", String(product.price)); }} className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2.5 text-slate-100"><option value="">Select product</option>{supplierProducts.map((item) => <option key={item._id} value={item._id}>{item.product_name} · {item.sku}</option>)}</select></Field>
+            <Field label="Order quantity"><TextInput required type="number" min="1" step="1" value={line.quantity} onChange={(e) => updateLine(index, "quantity", e.target.value)} /></Field>
+            <Field label="Unit price (INR)"><TextInput required type="number" min="0" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(index, "unitPrice", e.target.value)} /></Field>
+            <button type="button" disabled={lines.length === 1} onClick={() => removeLine(index)} className="rounded-lg border border-surface-border px-3 py-2.5 text-sm text-red-300 disabled:opacity-30">Remove</button>
+          </div>;
+        })}
+        <div className="flex flex-wrap gap-2"><button type="button" onClick={addLine} disabled={!supplierId} className="rounded-lg border border-surface-border px-3 py-2 text-sm text-indigo-300">＋ Add product line</button></div>
+        <Field label="Notes (optional)"><TextInput maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Delivery instructions or notes" /></Field>
+        <div><button disabled={busy || !supplierId || lines.some((line) => !line.inventoryId)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Processing…" : "Create purchase order"}</button></div>
+      </form>
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-between items-center"><h4 className="font-semibold text-slate-200">Recent orders</h4><button onClick={load} className="text-xs text-indigo-300">Refresh</button></div>
+        {orders.length === 0 ? <p className="text-sm text-slate-500">No purchase orders created yet.</p> : orders.map((order) => (
+          <article key={order._id} className="rounded-xl border border-surface-border p-4">
+            <div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold text-slate-100">{order.orderNumber}</p><p className="text-xs text-slate-500 mt-1">{order.supplier?.name || "Supplier"} · {new Date(order.createdAt).toLocaleDateString()}</p></div><span className="text-xs rounded-full bg-surface px-3 py-1 text-indigo-300">{order.status.replace("_", " ")}</span></div>
+            <div className="mt-3 space-y-1">{order.items.map((line) => <p key={line._id} className="text-sm text-slate-300">{line.productName} · {line.receivedQuantity}/{line.orderedQuantity} received · {money(line.unitPrice)} each</p>)}</div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {order.status === "pending" && <button disabled={busy} onClick={() => act("approve", order)} className="rounded-lg border border-indigo-500/50 px-3 py-2 text-xs text-indigo-300">Approve</button>}
+              {["approved", "partially_received"].includes(order.status) && <button disabled={busy} onClick={() => act("receive", order)} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs text-white">Receive remaining stock</button>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -414,6 +506,8 @@ export default function App() {
             </div>)}
           </div>}
         </section>
+
+        <PurchaseOrdersPanel inventory={items} suppliers={suppliers} onChanged={refreshList} />
 
         <section className="card p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
           <form onSubmit={applySearch} className="flex gap-2 flex-1">
