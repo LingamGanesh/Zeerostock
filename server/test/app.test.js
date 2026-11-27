@@ -36,7 +36,11 @@ test("protected inventory and reporting APIs reject anonymous requests", async (
   t.after(() => new Promise((resolve) => server.close(resolve)));
 
   const base = `http://127.0.0.1:${server.address().port}`;
-  for (const path of ["/api/v2/inventory", "/api/v2/dashboard", "/api/v2/purchase-orders", "/api/v2/reports/stock", "/api/v2/reports/movements"]) {
+  for (const path of [
+    "/api/v2/inventory", "/api/v2/dashboard", "/api/v2/purchase-orders",
+    "/api/v2/reports/stock", "/api/v2/reports/movements",
+    "/inventory", "/api/inventory", "/supplier", "/api/suppliers",
+  ]) {
     const response = await fetch(base + path);
     const body = await response.json();
     assert.equal(response.status, 401, path);
