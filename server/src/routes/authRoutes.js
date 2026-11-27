@@ -1,0 +1,14 @@
+const express = require("express");
+const authController = require("../controllers/authController");
+const asyncHandler = require("../utils/asyncHandler");
+const validate = require("../middleware/validate");
+const trustedOrigin = require("../middleware/trustedOrigin");
+const authenticate = require("../middleware/authenticate");
+const { registerSchema, loginSchema } = require("../validators/authValidators");
+const router = express.Router();
+router.post("/register", trustedOrigin, validate(registerSchema), asyncHandler(authController.register));
+router.post("/login", trustedOrigin, validate(loginSchema), asyncHandler(authController.login));
+router.post("/refresh", trustedOrigin, asyncHandler(authController.refresh));
+router.post("/logout", trustedOrigin, asyncHandler(authController.logout));
+router.get("/me", authenticate, asyncHandler(authController.me));
+module.exports = router;
