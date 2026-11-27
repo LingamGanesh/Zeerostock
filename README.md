@@ -1,226 +1,200 @@
-# Zeerostock — Inventory Management System
+# Zeerostock — Production Inventory Management System
 
-A full-stack inventory management application built with **Node.js + Express + MongoDB** (backend) and **React + Vite + Tailwind CSS** (frontend).
+Zeerostock is a full-stack inventory management application built with React + Vite and an Express + MongoDB API.
 
----
+## Features
 
-##  Project Structure
+- Secure administrator/manager login with access tokens and rotating refresh-token cookies
+- Inventory catalogue: create, search, update, archive, paginate and filter products
+- Supplier management with validation and protection against archiving suppliers linked to active products
+- Audited stock adjustments (stock in, stock out and set balance)
+- Dashboard with stock KPIs, category valuation, recent movements and purchase analytics
+- Purchase orders: create, approve, partially receive and complete orders
+- Stock valuation and inventory movement reports
+- Role-protected APIs, request validation, security middleware and structured logging
+- CI checks for backend syntax/tests/dependency audit and frontend production build
 
-```
-zeerostock/
-├── backend/
-│   ├── config/
-│   │   └── db.js                  # MongoDB connection via Mongoose
-│   ├── controllers/
-│   │   ├── inventoryController.js # All inventory API logic
-│   │   └── supplierController.js  # Supplier creation logic
-│   ├── data/
-│   │   └── seed.js                # Sample data seeder script
-│   ├── models/
-│   │   ├── Inventory.js           # Mongoose Inventory schema
-│   │   └── Supplier.js            # Mongoose Supplier schema
-│   ├── routes/
-│   │   ├── inventoryRoutes.js     # /inventory route definitions
-│   │   └── supplierRoutes.js      # /supplier route definitions
-│   ├── .env.example               # Environment variable template
-│   ├── package.json
-│   └── server.js                  # Express app entry point
-│
-└── frontend/
-    ├── src/
-    │   ├── components/
-    │   │   ├── GroupedView.jsx    # Supplier aggregation view
-    │   │   ├── InventoryCard.jsx  # Single product card
-    │   │   ├── SearchBar.jsx      # Search + filter UI
-    │   │   └── Spinner.jsx        # Loading indicator
-    │   ├── App.jsx                # Root component with all tabs
-    │   ├── index.css              # Tailwind + custom styles
-    │   └── main.jsx               # React DOM entry point
-    ├── index.html
-    ├── package.json
-    ├── postcss.config.js
-    ├── tailwind.config.js
-    └── vite.config.js
+## Repository layout
+
+```text
+Zeerostock/
+├── client/                 # React + Vite frontend
+│   ├── src/App.jsx
+│   ├── src/lib/api.js
+│   └── package.json
+├── server/                 # Express + Mongoose backend
+│   ├── src/                # App, routes, controllers, services, models
+│   ├── models/             # Inventory and Supplier models
+│   ├── controllers/        # Supplier and legacy inventory controllers
+│   ├── data/               # Initial admin and sample data scripts
+│   ├── test/
+│   ├── .env.example
+│   └── package.json
+└── .github/workflows/      # GitHub Actions CI
 ```
 
----
+## Requirements
 
-##  Getting Started
+- Node.js 20 or newer (npm included)
+- MongoDB 7+ running as a replica set, or MongoDB Atlas
+- Git
 
-### Prerequisites
+> **Important:** Stock adjustments and purchase-order receiving use MongoDB transactions. A standalone local MongoDB server will not support these operations. Use MongoDB Atlas or start a local single-node replica set as shown below.
 
-- **Node.js** v18 or higher
-- **MongoDB** — either local or [MongoDB Atlas](https://cloud.mongodb.com)
-- **npm** v9+
+## 1. Clone the project
 
----
-
-### 1. Clone / Download the Project
-
-```bash
-# If using git
-git clone <your-repo-url>
-cd zeerostock
+```powershell
+git clone https://github.com/LingamGanesh/Zeerostock.git
+cd Zeerostock
+git switch feat/production-inventory-platform
 ```
 
----
+The production-inventory work is currently on `feat/production-inventory-platform`. The `main` branch is kept separate.
 
-### 2. Backend Setup
+## 2. Start local MongoDB (Windows / Docker)
 
-```bash
-cd backend
+If Docker Desktop is installed, run these commands in PowerShell:
 
-# Install dependencies
-npm install
-
-# Create your .env file
-cp .env.example .env
+```powershell
+docker run -d --name zeerostock-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+docker exec zeerostock-mongo mongosh --eval "rs.initiate()"
 ```
 
-Edit `.env` with your values:
+Wait a few seconds for the replica set to elect its primary. If the container already exists, start it with `docker start zeerostock-mongo` and run the `rs.initiate()` command only if the replica set has not already been initialized.
 
+Alternatively, create a MongoDB Atlas cluster and use its connection string.
+
+## 3. Configure the backend
+
+Open a new PowerShell terminal from the repository root:
+
+```powershell
+cd server
+Copy-Item .env.example .env
 ```
-MONGO_URI=mongodb://localhost:27017/zeerostock
+
+Edit `server/.env`. At minimum set:
+
+```dotenv
+NODE_ENV=development
 PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/zeerostock?replicaSet=rs0
+JWT_ACCESS_SECRET=replace_with_a_random_secret_at_least_32_characters
+JWT_REFRESH_SECRET=replace_with_a_different_random_secret_at_least_32_characters
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_IN=7d
+CLIENT_URL=http://localhost:5173
+LOG_LEVEL=info
 ```
 
-> **MongoDB Atlas URI example:**  
-> `MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/zeerostock`
+Use two different random secrets of at least 32 characters. For Atlas, replace `MONGO_URI` with your Atlas URI and make sure the database user and network access are configured. Never commit your real `.env` file.
 
-#### Start the backend server
+Install dependencies:
 
-```bash
-# Development (auto-restart with nodemon)
-npm run dev
-
-# Production
-npm start
-```
-
-The API will run at: **http://localhost:5000**
-
-#### Seed sample data (optional but recommended)
-
-```bash
-npm run seed
-```
-
-This inserts 3 suppliers and 10 inventory items so you can explore the UI immediately.
-
----
-
-### 3. Frontend Setup
-
-```bash
-cd ../frontend
-
-# Install dependencies
+```powershell
 npm install
+```
 
-# Start development server
+## 4. Create the first administrator
+
+In `server/.env`, uncomment and set these values with your own details:
+
+```dotenv
+ADMIN_NAME=Your Admin Name
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=use_a_unique_password_at_least_12_characters
+```
+
+Then, from the `server` directory:
+
+```powershell
+npm run admin:create
+```
+
+The bootstrap command refuses to create another administrator if an active administrator already exists. After successful setup, remove the three ADMIN_* values from `.env`.
+
+## 5. Run the backend
+
+From the `server` directory:
+
+```powershell
 npm run dev
 ```
 
-The React app will run at: **http://localhost:5173**
+API: http://localhost:5000  
+Health check: http://localhost:5000/health
 
-> The Vite dev server automatically proxies `/inventory` and `/supplier` API calls to the backend on port 5000 — no CORS configuration needed during development.
+Keep this terminal open.
 
----
+## 6. Run the frontend
 
-## 🔌 API Reference
+Open a second PowerShell terminal at the repository root:
 
-| Method | Endpoint                  | Description                                      |
-|--------|---------------------------|--------------------------------------------------|
-| POST   | `/supplier`               | Create a new supplier                            |
-| POST   | `/inventory`              | Create a new inventory item                      |
-| GET    | `/inventory`              | List all inventory items (with supplier info)    |
-| GET    | `/inventory/grouped`      | Total stock value grouped by supplier, desc.     |
-| GET    | `/inventory/search`       | Search by name, min/max price (all optional)     |
-
-### Search Query Parameters
-
-```
-GET /inventory/search?product_name=macbook&minPrice=50000&maxPrice=200000
+```powershell
+cd client
+Copy-Item .env.example .env
+npm install
+npm run dev
 ```
 
-| Parameter    | Type   | Description                        |
-|-------------|--------|------------------------------------|
-| product_name | string | Case-insensitive partial match     |
-| minPrice     | number | Minimum price filter               |
-| maxPrice     | number | Maximum price filter               |
+Open the Vite URL shown in the terminal (normally http://localhost:5173). The development proxy forwards `/api` requests to the backend at `http://localhost:5000`, so leave `VITE_API_URL` empty for local development.
 
-### Example Request: Create Supplier
+Sign in using the administrator email and password created in step 4.
 
-```bash
-curl -X POST http://localhost:5000/supplier \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "TechNova Pvt. Ltd.",
-    "contactEmail": "info@technova.in",
-    "phone": "+91-9999888877",
-    "address": "Hitech City, Hyderabad – 500081",
-    "country": "India"
-  }'
+## 7. Run checks
+
+Backend (from `server`):
+
+```powershell
+npm run check
+npm test
+npm audit --audit-level=high
 ```
 
-### Example Request: Create Inventory Item
+Frontend production build (from `client`):
 
-```bash
-curl -X POST http://localhost:5000/inventory \
-  -H "Content-Type: application/json" \
-  -d '{
-    "product_name": "iPad Air M2",
-    "sku": "APL-IPADAIR-M2-BLU",
-    "category": "Tablets",
-    "quantity": 30,
-    "price": 59900,
-    "supplier": "<supplier_id_here>",
-    "description": "Apple iPad Air with M2 chip, 11-inch"
-  }'
+```powershell
+npm run build
 ```
 
----
+CI runs the backend checks and frontend build automatically on pushes to `main` and `feat/production-inventory-platform`, and on pull requests targeting `main`.
 
-## Frontend Features
+## API overview
 
-| Feature           | Description                                           |
-|-------------------|-------------------------------------------------------|
-| **All Inventory** | Card grid showing all products with live stats bar    |
-| **Search**        | Name + price range filters; "No results" empty state  |
-| **By Supplier**   | Ranked list of suppliers by total portfolio value     |
-| Loading Spinner   | Animated concentric-ring spinner during API calls     |
-| Stock Badges      | Colour-coded: In Stock / Low Stock / Out of Stock     |
-| Luxury Dark UI    | Indigo/slate palette, Playfair Display + DM Sans fonts|
-| Responsive        | Adapts from mobile to large desktop screens           |
+All authenticated management routes require an administrator or manager account.
 
----
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/auth/register` | Register an account (subject to registration policy) |
+| POST | `/api/auth/login` | Sign in |
+| POST | `/api/auth/refresh` | Refresh session |
+| POST | `/api/auth/logout` | Sign out |
+| GET | `/api/auth/me` | Current account |
+| GET/POST | `/api/v2/inventory` | List / create inventory |
+| GET/PATCH/DELETE | `/api/v2/inventory/:id` | View / update / archive inventory |
+| POST | `/api/v2/inventory/:id/adjustments` | Audited stock adjustment |
+| GET | `/api/v2/inventory/:id/movements` | Product movement history |
+| GET | `/api/v2/dashboard/summary` | Dashboard analytics |
+| GET/POST | `/api/v2/purchase-orders` | List / create purchase orders |
+| POST | `/api/v2/purchase-orders/:id/approve` | Approve a purchase order |
+| POST | `/api/v2/purchase-orders/:id/receive` | Receive stock against an order |
+| GET | `/api/v2/reports/stock` | Stock valuation report |
+| GET | `/api/v2/reports/movements` | Movement report |
+| GET/POST | `/api/suppliers` | List / create suppliers |
+| PATCH/DELETE | `/api/suppliers/:id` | Update / archive suppliers |
 
-## 🛠 Tech Stack
+## Troubleshooting
 
-| Layer     | Technology                          |
-|-----------|-------------------------------------|
-| Frontend  | React 18, Vite, Tailwind CSS        |
-| Fonts     | Playfair Display, DM Sans (Google)  |
-| Backend   | Node.js, Express 4                  |
-| Database  | MongoDB, Mongoose 8                 |
-| Dev Tools | nodemon, dotenv, cors               |
+- **MongoDB connection refused:** confirm MongoDB/Docker is running and that `MONGO_URI` points to the correct host and port.
+- **Transaction / replica-set error:** use MongoDB Atlas or initialize the local replica set using step 2.
+- **CORS error:** keep `CLIENT_URL=http://localhost:5173` and open the frontend at that exact origin.
+- **401 Unauthorized:** sign in again; the API requires a valid session for management endpoints.
+- **Port already in use:** change `PORT` in `server/.env` or stop the process using that port.
 
----
+## Production deployment notes
 
-## Notes
+Deploy the client and server separately. Configure `VITE_API_URL` to the public API origin at client build time. Set the backend environment variables in the hosting provider, use MongoDB Atlas, set `NODE_ENV=production`, and set `CLIENT_URL` to the exact frontend origin. Configure HTTPS so secure refresh-token cookies work. Do not expose JWT secrets or database credentials in the frontend.
 
-- All monetary values are in **Indian Rupees (₹)**.
-- The `sku` field is **unique** — duplicate SKUs will be rejected.
-- The `/inventory/grouped` endpoint uses a MongoDB **aggregation pipeline**.
-- Validation errors return a `400` response with an array of error messages.
+## Current verification boundary
 
----
-
-##  Author
-
-**Zeerostock Assignment** — submitted as a company evaluation project.
-
-## Live Demo
-
-Frontend: https://your-frontend-link  
-Backend: https://zeerostock-backend-g14t.onrender.com
+The GitHub Actions workflow validates JavaScript syntax, backend tests, high/critical dependency audit, and the React production build. It does not run a full browser-based end-to-end test suite or exercise MongoDB transaction flows against a live database. Run the project locally with a replica set or Atlas and verify the critical workflows before production release.
