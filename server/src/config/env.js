@@ -11,7 +11,7 @@ const envSchema = z.object({
   REFRESH_TOKEN_EXPIRES_IN: z.string().default("7d"),
   CLIENT_URL: z.string().default("http://localhost:5173"),
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().email().default("Zeerostock <onboarding@resend.dev>"),
+  EMAIL_FROM: z.string().min(3).default("Zeerostock <onboarding@resend.dev>"),
   LOG_LEVEL: z.enum(["error", "warn", "info", "http", "verbose", "debug"]).default("info"),
 });
 const parsed = envSchema.safeParse(process.env);
