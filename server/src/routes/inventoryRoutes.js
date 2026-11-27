@@ -5,6 +5,7 @@ const {
   createInventoryItem,
   updateInventoryItem,
   adjustInventoryStock,
+  archiveInventoryItem,
   getInventoryMovements,
 } = require("../controllers/inventoryController");
 
@@ -15,6 +16,7 @@ router.route("/")
   .post(createInventoryItem);
 
 router.get("/:id/movements", getInventoryMovements);
+router.delete("/:id", archiveInventoryItem);
 router.post("/:id/adjustments", adjustInventoryStock);
 router.route("/:id")
   .get(getInventoryItem)
