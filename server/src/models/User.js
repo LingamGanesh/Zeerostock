@@ -19,5 +19,4 @@ userSchema.methods.comparePassword = function comparePassword(candidate) {
   return bcrypt.compare(candidate, this.password);
 };
 
-userSchema.index({ email: 1 }, { unique: true });
 module.exports = mongoose.model("User", userSchema);
