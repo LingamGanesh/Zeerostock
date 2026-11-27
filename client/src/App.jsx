@@ -14,6 +14,12 @@ import {
   getMovementReport,
   getSuppliers,
   login,
+  registerAccount,
+  verifyEmail,
+  resendVerification,
+  requestPasswordReset,
+  verifyResetOtp,
+  resetPassword,
   logout,
   refreshSession,
   updateInventory,
@@ -41,23 +47,124 @@ function TextInput(props) {
   return <input {...props} className={`w-full rounded-lg bg-surface border border-surface-border px-3 py-2.5 text-slate-100 outline-none focus:border-indigo-500 ${props.className || ""}`} />;
 }
 
-function LoginPanel({ onLogin, busy, error }) {
+function LoginPanel({ onLogin }) {
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialToken = initialParams.get("token") || "";
+  const initialMode = initialParams.get("auth") === "verify-email" ? "verify" : "login";
+  const [mode, setMode] = useState(initialMode);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [verificationToken] = useState(initialToken);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (initialMode !== "verify" || !initialToken) return;
+    let active = true;
+    setBusy(true);
+    verifyEmail(initialToken)
+      .then((result) => {
+        if (!active) return;
+        setNotice(result.message || "Email verified. You can now sign in.");
+        setMode("login");
+        window.history.replaceState({}, "", window.location.pathname);
+      })
+      .catch((err) => { if (active) setError(err.message); })
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; };
+  }, []);
+
+  const changeMode = (nextMode) => {
+    setMode(nextMode); setError(""); setNotice("");
+  };
+  const submit = async (event) => {
+    event.preventDefault(); setBusy(true); setError(""); setNotice("");
+    try {
+      if (mode === "login") {
+        await onLogin(email.trim().toLowerCase(), password);
+      } else if (mode === "register") {
+        if (password !== confirmPassword) throw new Error("Passwords do not match.");
+        const result = await registerAccount(name.trim(), email.trim().toLowerCase(), password);
+        setNotice(result.message || "Account created. Check your inbox to verify your email.");
+        setMode("verify-pending");
+      } else if (mode === "resend") {
+        const result = await resendVerification(email.trim().toLowerCase());
+        setNotice(result.message || "If your account needs verification, a new link has been sent.");
+      } else if (mode === "forgot") {
+        const result = await requestPasswordReset(email.trim().toLowerCase());
+        setNotice(result.message || "If an account exists, a reset code has been sent.");
+        setMode("otp");
+      } else if (mode === "otp") {
+        const result = await verifyResetOtp(email.trim().toLowerCase(), otp.trim());
+        setResetToken(result.data.resetToken);
+        setMode("reset");
+        setNotice("Code verified. Choose a new password.");
+      } else if (mode === "reset") {
+        if (password !== confirmPassword) throw new Error("Passwords do not match.");
+        await resetPassword(email.trim().toLowerCase(), resetToken, password);
+        setPassword(""); setConfirmPassword("");
+        setNotice("Password reset successfully. Sign in with your new password.");
+        setMode("login");
+      }
+    } catch (err) { setError(err.message || "Something went wrong. Please try again."); }
+    finally { setBusy(false); }
+  };
+
+  const titles = {
+    login: ["Welcome back", "Sign in to your Zeerostock workspace."],
+    register: ["Create your account", "Register with your work email address."],
+    "verify-pending": ["Check your inbox", "Your account is created. Verify your email before signing in."],
+    resend: ["Resend verification", "Get a fresh email verification link."],
+    forgot: ["Forgot password?", "We'll email you a one-time reset code."],
+    otp: ["Verify reset code", "Enter the six-digit code sent to your email."],
+    reset: ["Create a new password", "Choose a strong password you have not used before."],
+    verify: ["Verifying your email", "Please wait while we validate your secure link."],
+  };
+  const [title, subtitle] = titles[mode] || titles.login;
+  const inputClass = "w-full rounded-xl bg-surface border border-surface-border px-4 py-3 text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20";
+  const field = (label, child) => <label className="text-sm text-slate-300 flex flex-col gap-2">{label}{child}</label>;
+
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-12">
-      <form onSubmit={(event) => { event.preventDefault(); onLogin(email, password); }}
-        className="card w-full max-w-md p-8 flex flex-col gap-5">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-indigo-300">Zeerostock workspace</p>
-          <h1 className="font-display text-3xl font-bold text-slate-100 mt-2">Welcome back</h1>
-          <p className="text-sm text-slate-400 mt-2">Sign in with your administrator or manager account.</p>
+      <div className="w-full max-w-md">
+        <div className="text-center mb-7">
+          <p className="text-xs uppercase tracking-[0.28em] text-indigo-300">Inventory intelligence</p>
+          <h1 className="font-display text-4xl font-bold gradient-text mt-2">Zeerostock</h1>
+          <p className="text-sm text-slate-500 mt-2">Secure inventory management</p>
         </div>
-        {error && <p role="alert" className="text-sm text-red-300 bg-red-950/40 border border-red-900 rounded-lg p-3">{error}</p>}
-        <Field label="Email address"><TextInput required type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
-        <Field label="Password"><TextInput required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
-        <button disabled={busy} className="rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-semibold py-3">{busy ? "Signing in…" : "Sign in"}</button>
-      </form>
+        <form onSubmit={submit} className="card w-full p-7 sm:p-8 flex flex-col gap-5">
+          <div>
+            <h2 className="font-display text-2xl font-bold text-slate-100">{title}</h2>
+            <p className="text-sm text-slate-400 mt-2">{subtitle}</p>
+          </div>
+          {notice && <p role="status" className="text-sm text-emerald-300 bg-emerald-950/30 border border-emerald-900 rounded-xl p-3">{notice}</p>}
+          {error && <p role="alert" className="text-sm text-red-300 bg-red-950/40 border border-red-900 rounded-xl p-3">{error}</p>}
+          {mode === "verify" && busy && <Spinner message="Verifying email address…" />}
+          {mode === "register" && field("Full name", <input className={inputClass} required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />)}
+          {["login", "register", "resend", "forgot", "otp", "reset"].includes(mode) && field("Email address", <input className={inputClass} required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={["otp", "reset"].includes(mode)} />)}
+          {mode === "otp" && field("6-digit verification code", <input className={inputClass} required inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} autoComplete="one-time-code" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} />)}
+          {["login", "register", "reset"].includes(mode) && field(mode === "reset" ? "New password" : "Password", <input className={inputClass} required type="password" minLength={8} maxLength={72} autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} />)}
+          {["register", "reset"].includes(mode) && field("Confirm password", <input className={inputClass} required type="password" minLength={8} maxLength={72} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />)}
+          {["login", "register", "resend", "forgot", "otp", "reset"].includes(mode) && <button disabled={busy} className="rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold py-3.5 shadow-lg shadow-indigo-950/30">{busy ? "Please wait…" : ({ login: "Sign in", register: "Create account", resend: "Send verification link", forgot: "Send reset code", otp: "Verify code", reset: "Reset password" }[mode])}</button>}
+          <div className="flex flex-wrap justify-between gap-x-4 gap-y-2 text-sm">
+            {mode === "login" && <><button type="button" onClick={() => changeMode("forgot")} className="text-indigo-300 hover:text-indigo-200">Forgot password?</button><button type="button" onClick={() => changeMode("register")} className="text-slate-300 hover:text-white">Create account</button></>}
+            {mode === "login" && <button type="button" onClick={() => changeMode("resend")} className="text-slate-400 hover:text-white">Resend verification email</button>}
+            {mode === "register" && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Already registered? Sign in</button>}
+            {mode === "resend" && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Back to sign in</button>}
+            {mode === "forgot" && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Back to sign in</button>}
+            {mode === "otp" && <button type="button" onClick={() => changeMode("forgot")} className="text-indigo-300">Request another code</button>}
+            {mode === "reset" && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Cancel</button>}
+            {mode === "verify-pending" && <><button type="button" onClick={() => changeMode("resend")} className="text-indigo-300">Resend verification link</button><button type="button" onClick={() => changeMode("login")} className="text-slate-300">Back to sign in</button></>}
+            {mode === "verify" && !verificationToken && <button type="button" onClick={() => changeMode("login")} className="text-indigo-300">Back to sign in</button>}
+          </div>
+          <p className="text-center text-xs text-slate-600 pt-1">Protected access · Secure session management</p>
+        </form>
+      </div>
     </main>
   );
 }
@@ -545,7 +652,7 @@ export default function App() {
   };
 
   if (!authReady) return <div className="min-h-screen flex items-center justify-center"><Spinner message="Restoring secure session…" /></div>;
-  if (!user) return <LoginPanel onLogin={handleLogin} busy={authBusy} error={authError} />;
+  if (!user) return <LoginPanel onLogin={handleLogin} />;
 
   if (!["admin", "manager"].includes(user.role)) {
     return <main className="min-h-screen flex items-center justify-center p-6"><div className="card max-w-lg p-8 text-center"><h1 className="font-display text-2xl text-slate-100">Access restricted</h1><p className="text-slate-400 mt-3">Inventory management requires an administrator or manager role.</p><button onClick={handleLogout} className="mt-6 rounded-lg bg-indigo-600 px-5 py-2 text-white">Sign out</button></div></main>;
