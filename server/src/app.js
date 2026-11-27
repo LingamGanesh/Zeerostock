@@ -9,6 +9,7 @@ const config = require("./config/env");
 const logger = require("./utils/logger");
 const authRoutes = require("./routes/authRoutes");
 const inventoryV2Routes = require("./routes/inventoryRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 const inventoryRoutes = require("../routes/inventoryRoutes");
 const supplierRoutes = require("../routes/supplierRoutes");
 const authenticate = require("./middleware/authenticate");
@@ -50,6 +51,7 @@ const authLimiter = rateLimit({
 });
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/v2/inventory", authenticate, (req, res, next) => authorize("admin", "manager")(req, res, next), inventoryV2Routes);
+app.use("/api/v2/dashboard", authenticate, (req, res, next) => authorize("admin", "manager")(req, res, next), dashboardRoutes);
 
 const protectInventoryWrites = (req, res, next) => {
   if (req.method === "GET") return next();
