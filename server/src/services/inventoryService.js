@@ -22,6 +22,13 @@ async function adjustStock({ inventoryId, direction, quantity, reason, reference
       error.statusCode = 409;
       throw error;
     }
+    // Setting the balance to its current value is a valid no-op, not a movement.
+    // Avoid creating a zero-quantity InventoryMovement (the schema requires >= 1).
+    if (newQuantity === previousQuantity) {
+      await inventory.populate("supplier", "name contactEmail country");
+      updatedInventory = inventory;
+      return;
+    }
     const result = await Inventory.updateOne(
       { _id: inventoryId, isActive: { $ne: false }, quantity: previousQuantity },
       { $set: { quantity: newQuantity } },
