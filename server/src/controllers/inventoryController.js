@@ -16,7 +16,7 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const listInventory = asyncHandler(async (req, res) => {
   const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
-  const filter = {};
+  const filter = { isActive: { $ne: false } };
   if (req.query.q) {
     const search = escapeRegex(String(req.query.q).trim().slice(0, 80));
     filter.$or = [
@@ -102,6 +102,19 @@ const adjustInventoryStock = asyncHandler(async (req, res) => {
   return sendSuccess(res, { message: "Stock adjusted and movement recorded", data: item });
 });
 
+const archiveInventoryItem = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: "Invalid inventory ID", data: null, errors: [] });
+  }
+  const item = await Inventory.findOneAndUpdate(
+    { _id: req.params.id, isActive: { $ne: false } },
+    { $set: { isActive: false } },
+    { new: true }
+  );
+  if (!item) return res.status(404).json({ success: false, message: "Active inventory item not found", data: null, errors: [] });
+  return sendSuccess(res, { message: "Inventory item archived", data: { id: item._id, isActive: item.isActive } });
+});
+
 const getInventoryMovements = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ success: false, message: "Invalid inventory ID", data: null, errors: [] });
@@ -125,5 +138,6 @@ module.exports = {
   createInventoryItem,
   updateInventoryItem,
   adjustInventoryStock,
+  archiveInventoryItem,
   getInventoryMovements,
 };
