@@ -555,7 +555,7 @@ export default function App() {
   const handleLogin = async (email, password) => {
     setAuthBusy(true); setAuthError("");
     try { setUser(await login(email, password)); }
-    catch (err) { setAuthError(err.message); }
+    catch (err) { setAuthError(err.message); throw err; }
     finally { setAuthBusy(false); }
   };
 
