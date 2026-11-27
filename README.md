@@ -4,7 +4,8 @@ Zeerostock is a full-stack inventory management application built with React + V
 
 ## Features
 
-- Secure administrator/manager login with access tokens and rotating refresh-token cookies
+- Secure login and registration with email verification, resend verification, forgot-password OTP and password reset
+- Access tokens with rotating, HttpOnly refresh-token cookies and server-side session revocation
 - Inventory catalogue: create, search, update, archive, paginate and filter products
 - Supplier management with validation and protection against archiving suppliers linked to active products
 - Audited stock adjustments (stock in, stock out and set balance)
@@ -85,9 +86,13 @@ ACCESS_TOKEN_EXPIRES_IN=15m
 REFRESH_TOKEN_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5173
 LOG_LEVEL=info
+RESEND_API_KEY=re_your_resend_api_key
+EMAIL_FROM=Zeerostock <onboarding@resend.dev>
 ```
 
 Use two different random secrets of at least 32 characters. For Atlas, replace `MONGO_URI` with your Atlas URI and make sure the database user and network access are configured. Never commit your real `.env` file.
+
+Email delivery is used for registration verification and password recovery. Create a Resend account, add/verify a sender domain for production, and set `RESEND_API_KEY` plus `EMAIL_FROM` in `server/.env`. The Resend onboarding sender is suitable only for limited testing and may restrict recipient addresses. Never put the email API key in the React client.
 
 Install dependencies:
 
@@ -165,8 +170,13 @@ All authenticated management routes require an administrator or manager account.
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| POST | `/api/auth/register` | Register an account (subject to registration policy) |
-| POST | `/api/auth/login` | Sign in |
+| POST | `/api/auth/register` | Register and send email verification link |
+| POST | `/api/auth/verify-email` | Verify email using one-time link token |
+| POST | `/api/auth/resend-verification` | Resend verification email |
+| POST | `/api/auth/login` | Sign in (verified email required) |
+| POST | `/api/auth/forgot-password` | Send six-digit password reset code |
+| POST | `/api/auth/verify-reset-otp` | Verify reset code and issue short-lived reset token |
+| POST | `/api/auth/reset-password` | Set new password and revoke active sessions |
 | POST | `/api/auth/refresh` | Refresh session |
 | POST | `/api/auth/logout` | Sign out |
 | GET | `/api/auth/me` | Current account |
