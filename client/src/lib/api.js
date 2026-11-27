@@ -81,6 +81,26 @@ export async function logout() {
   }
 }
 
+
+export async function registerAccount(name, email, password) {
+  return request("/api/auth/register", { method: "POST", body: JSON.stringify({ name, email, password }) }, false);
+}
+export async function verifyEmail(token) {
+  return request("/api/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) }, false);
+}
+export async function resendVerification(email) {
+  return request("/api/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) }, false);
+}
+export async function requestPasswordReset(email) {
+  return request("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }, false);
+}
+export async function verifyResetOtp(email, otp) {
+  return request("/api/auth/verify-reset-otp", { method: "POST", body: JSON.stringify({ email, otp }) }, false);
+}
+export async function resetPassword(email, resetToken, newPassword) {
+  return request("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ email, resetToken, newPassword }) }, false);
+}
+
 export async function getInventory({ q = "", page = 1, limit = 12, lowStock = false } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (q.trim()) params.set("q", q.trim());
