@@ -8,6 +8,7 @@ const morgan = require("morgan");
 const config = require("./config/env");
 const logger = require("./utils/logger");
 const authRoutes = require("./routes/authRoutes");
+const inventoryV2Routes = require("./routes/inventoryRoutes");
 const inventoryRoutes = require("../routes/inventoryRoutes");
 const supplierRoutes = require("../routes/supplierRoutes");
 const authenticate = require("./middleware/authenticate");
@@ -48,6 +49,7 @@ const authLimiter = rateLimit({
   message: { success: false, message: "Too many authentication attempts. Try again later.", data: null, errors: [] },
 });
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/v2/inventory", authenticate, (req, res, next) => authorize("admin", "manager")(req, res, next), inventoryV2Routes);
 
 const protectInventoryWrites = (req, res, next) => {
   if (req.method === "GET") return next();
