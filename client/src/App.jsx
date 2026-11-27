@@ -7,6 +7,7 @@ import {
   createInventory,
   getInventory,
   getInventoryMovements,
+  getDashboardSummary,
   getSuppliers,
   login,
   logout,
@@ -151,6 +152,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
   const [pagination, setPagination] = useState(null);
   const [query, setQuery] = useState("");
   const [appliedQuery, setAppliedQuery] = useState("");
@@ -182,6 +184,15 @@ export default function App() {
     }
   }, [appliedQuery, page, lowStockOnly]);
 
+  const loadDashboard = useCallback(async () => {
+    try {
+      const result = await getDashboardSummary();
+      setDashboard(result.data || null);
+    } catch (err) {
+      setError((previous) => previous || `Unable to load dashboard: ${err.message}`);
+    }
+  }, []);
+
   const loadSuppliers = useCallback(async () => {
     try {
       const result = await getSuppliers();
@@ -205,8 +216,9 @@ export default function App() {
     if (user && ["admin", "manager"].includes(user.role)) {
       loadInventory();
       loadSuppliers();
+      loadDashboard();
     }
-  }, [user, loadInventory, loadSuppliers]);
+  }, [user, loadInventory, loadSuppliers, loadDashboard]);
 
   const handleLogin = async (email, password) => {
     setAuthBusy(true); setAuthError("");
@@ -217,7 +229,7 @@ export default function App() {
 
   const handleLogout = async () => {
     try { await logout(); } catch (err) { setError(err.message); }
-    setUser(null); setItems([]); setSuppliers([]);
+    setUser(null); setItems([]); setSuppliers([]); setDashboard(null);
   };
 
   const refreshList = async () => {
@@ -288,9 +300,7 @@ export default function App() {
     return <main className="min-h-screen flex items-center justify-center p-6"><div className="card max-w-lg p-8 text-center"><h1 className="font-display text-2xl text-slate-100">Access restricted</h1><p className="text-slate-400 mt-3">Inventory management requires an administrator or manager role.</p><button onClick={handleLogout} className="mt-6 rounded-lg bg-indigo-600 px-5 py-2 text-white">Sign out</button></div></main>;
   }
 
-  const totalUnits = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-  const totalValue = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0);
-  const lowStock = items.filter((item) => Number(item.quantity) <= 5).length;
+  const summary = dashboard?.summary || {};
   const pages = pagination?.pages || 1;
 
   const applySearch = (event) => {
@@ -320,12 +330,19 @@ export default function App() {
         </section>
 
         {notice && <div role="status" className="flex justify-between items-center rounded-lg border border-emerald-900 bg-emerald-950/30 p-3 text-sm text-emerald-300"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div>}
-        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Total products</p><p className="font-display text-2xl text-slate-100 mt-2">{pagination?.total ?? items.length}</p></div>
-          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Units on this page</p><p className="font-display text-2xl text-slate-100 mt-2">{totalUnits.toLocaleString("en-IN")}</p></div>
-          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Stock value on this page</p><p className="font-display text-2xl text-emerald-300 mt-2">{money(totalValue)}</p></div>
-          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Low stock on this page</p><p className="font-display text-2xl text-amber-300 mt-2">{lowStock}</p></div>
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Active products</p><p className="font-display text-2xl text-slate-100 mt-2">{(summary.totalProducts || 0).toLocaleString("en-IN")}</p></div>
+          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Total units</p><p className="font-display text-2xl text-slate-100 mt-2">{(summary.totalUnits || 0).toLocaleString("en-IN")}</p></div>
+          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Total stock value</p><p className="font-display text-2xl text-emerald-300 mt-2">{money(summary.totalStockValue || 0)}</p></div>
+          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Low stock (≤ 5)</p><p className="font-display text-2xl text-amber-300 mt-2">{(summary.lowStockProducts || 0).toLocaleString("en-IN")}</p></div>
+          <div className="card p-5"><p className="text-xs uppercase tracking-wider text-slate-500">Out of stock</p><p className="font-display text-2xl text-red-300 mt-2">{(summary.outOfStockProducts || 0).toLocaleString("en-IN")}</p></div>
         </section>
+        {dashboard?.categoryBreakdown?.length > 0 && <section className="card p-5">
+          <div className="flex items-center justify-between mb-4"><div><h3 className="font-display text-lg text-slate-100">Category valuation</h3><p className="text-xs text-slate-500 mt-1">Active inventory grouped by category</p></div><span className="text-xs text-slate-500">{dashboard.categoryBreakdown.length} categories</span></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {dashboard.categoryBreakdown.map((category) => <div key={category.category} className="rounded-lg bg-surface border border-surface-border p-3"><p className="text-sm text-slate-300 truncate">{category.category}</p><p className="font-semibold text-indigo-300 mt-1">{money(category.stockValue)}</p><p className="text-xs text-slate-500 mt-1">{category.products} products · {category.units.toLocaleString("en-IN")} units</p></div>)}
+          </div>
+        </section>}
 
         <section className="card p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
           <form onSubmit={applySearch} className="flex gap-2 flex-1">
