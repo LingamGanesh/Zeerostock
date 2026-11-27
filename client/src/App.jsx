@@ -10,6 +10,8 @@ import {
   getInventory,
   getInventoryMovements,
   getDashboardSummary,
+  getStockReport,
+  getMovementReport,
   getSuppliers,
   login,
   logout,
@@ -179,6 +181,107 @@ function MovementsDialog({ item, onClose }) {
   );
 }
 
+
+function csvCell(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename, headers, rows) {
+  const content = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\\r\\n");
+  const blob = new Blob(["\\uFEFF", content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function StockReportsPanel() {
+  const [stockType, setStockType] = useState("all");
+  const [stockReport, setStockReport] = useState(null);
+  const [stockLoading, setStockLoading] = useState(true);
+  const [stockError, setStockError] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [movementType, setMovementType] = useState("");
+  const [movementPage, setMovementPage] = useState(1);
+  const [movementData, setMovementData] = useState({ movements: [], pagination: null });
+  const [movementLoading, setMovementLoading] = useState(false);
+  const [movementError, setMovementError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setStockLoading(true);
+    setStockError("");
+    getStockReport({ type: stockType })
+      .then((result) => { if (active) setStockReport(result.data || null); })
+      .catch((error) => { if (active) setStockError(error.message); })
+      .finally(() => { if (active) setStockLoading(false); });
+    return () => { active = false; };
+  }, [stockType]);
+
+  const loadMovements = useCallback(async () => {
+    setMovementLoading(true);
+    setMovementError("");
+    try {
+      const result = await getMovementReport({ from, to, movementType, page: movementPage, limit: 25 });
+      setMovementData(result.data || { movements: [], pagination: null });
+    } catch (error) { setMovementError(error.message); }
+    finally { setMovementLoading(false); }
+  }, [from, to, movementType, movementPage]);
+
+  useEffect(() => { loadMovements(); }, [loadMovements]);
+
+  const stockItems = stockReport?.items || [];
+  const movements = movementData.movements || [];
+  const movementPagination = movementData.pagination;
+
+  return <section className="card p-5 space-y-6">
+    <div><h3 className="font-display text-xl text-slate-100">Inventory reports</h3><p className="text-xs text-slate-500 mt-1">Stock valuation exports and date-filtered movement audit</p></div>
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div><h4 className="font-semibold text-slate-200">Stock valuation &amp; availability</h4><p className="text-xs text-slate-500">Active inventory · export capped at 5,000 products</p></div>
+        <div className="flex flex-wrap gap-2">
+          <select value={stockType} onChange={(event) => setStockType(event.target.value)} className="rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm text-slate-200">
+            <option value="all">All active stock</option><option value="low">Low stock (1–5)</option><option value="out">Out of stock</option>
+          </select>
+          <button disabled={stockLoading || stockItems.length === 0} onClick={() => downloadCsv("zeerostock-stock-report.csv", ["Product", "SKU", "Category", "Quantity", "Unit price (INR)", "Stock value (INR)", "Supplier"], stockItems.map((item) => [item.product_name, item.sku, item.category, item.quantity, item.price, Number(item.price || 0) * Number(item.quantity || 0), item.supplier?.name]))} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white disabled:opacity-40">Export stock CSV</button>
+        </div>
+      </div>
+      {stockError && <p role="alert" className="text-sm text-red-300 mb-2">{stockError}</p>}
+      {stockLoading ? <p className="text-sm text-slate-500">Loading stock report…</p> : stockReport && <>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
+          <div className="rounded-lg bg-surface p-3"><p className="text-xs text-slate-500">Products</p><p className="text-lg text-slate-100">{stockReport.summary.productCount}</p></div>
+          <div className="rounded-lg bg-surface p-3"><p className="text-xs text-slate-500">Total units</p><p className="text-lg text-slate-100">{stockReport.summary.totalUnits}</p></div>
+          <div className="rounded-lg bg-surface p-3"><p className="text-xs text-slate-500">Stock value</p><p className="text-lg text-emerald-300">{money(stockReport.summary.stockValue)}</p></div>
+          <div className="rounded-lg bg-surface p-3"><p className="text-xs text-slate-500">Low stock</p><p className="text-lg text-amber-300">{stockReport.summary.lowStockCount}</p></div>
+          <div className="rounded-lg bg-surface p-3"><p className="text-xs text-slate-500">Out of stock</p><p className="text-lg text-red-300">{stockReport.summary.outOfStockCount}</p></div>
+        </div>
+        {stockReport.truncated && <p className="text-xs text-amber-300 mb-2">Report reached the 5,000-item export limit. Narrow the report type to export a smaller result.</p>}
+        <div className="overflow-x-auto max-h-72 overflow-y-auto"><table className="w-full text-sm text-left"><thead className="sticky top-0 bg-surface text-xs uppercase text-slate-500"><tr><th className="py-2 pr-3">Product</th><th className="py-2 pr-3">SKU</th><th className="py-2 pr-3">Qty</th><th className="py-2 pr-3">Unit price</th><th className="py-2 pr-3">Stock value</th><th className="py-2">Supplier</th></tr></thead><tbody>{stockItems.slice(0, 100).map((item) => <tr key={item._id} className="border-t border-surface-border/70"><td className="py-2 pr-3 text-slate-200">{item.product_name}</td><td className="py-2 pr-3 text-slate-400">{item.sku}</td><td className={`py-2 pr-3 ${item.quantity <= 5 ? "text-amber-300" : "text-slate-300"}`}>{item.quantity}</td><td className="py-2 pr-3 text-slate-300">{money(item.price)}</td><td className="py-2 pr-3 text-slate-300">{money(Number(item.price || 0) * Number(item.quantity || 0))}</td><td className="py-2 text-slate-400">{item.supplier?.name || "—"}</td></tr>)}</tbody></table></div>
+        {stockItems.length > 100 && <p className="text-xs text-slate-500 mt-2">Showing first 100 rows on screen; CSV contains all {stockItems.length} returned rows.</p>}
+      </>}
+    </div>
+    <div className="border-t border-surface-border pt-5">
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+        <div><h4 className="font-semibold text-slate-200">Stock movement history</h4><p className="text-xs text-slate-500">Filter by date and movement type; 25 records per page</p></div>
+        <button disabled={movementLoading || movements.length === 0} onClick={() => downloadCsv("zeerostock-movement-history.csv", ["Date", "Product", "SKU", "Type", "Quantity", "Previous balance", "New balance", "Reason", "Reference", "Performed by"], movements.map((entry) => [new Date(entry.createdAt).toISOString(), entry.inventory?.product_name, entry.inventory?.sku, entry.movementType, entry.quantity, entry.previousQuantity, entry.newQuantity, entry.reason, entry.reference, entry.performedBy?.name]))} className="rounded-lg border border-surface-border px-3 py-2 text-sm text-indigo-300 disabled:opacity-40">Export current page CSV</button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+        <label className="text-xs text-slate-400 flex flex-col gap-1">From date<input type="date" value={from} max={to || undefined} onChange={(event) => { setFrom(event.target.value); setMovementPage(1); }} className="rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm text-slate-200" /></label>
+        <label className="text-xs text-slate-400 flex flex-col gap-1">To date<input type="date" value={to} min={from || undefined} onChange={(event) => { setTo(event.target.value); setMovementPage(1); }} className="rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm text-slate-200" /></label>
+        <label className="text-xs text-slate-400 flex flex-col gap-1">Movement type<select value={movementType} onChange={(event) => { setMovementType(event.target.value); setMovementPage(1); }} className="rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm text-slate-200"><option value="">All movements</option><option value="in">Stock in</option><option value="out">Stock out</option><option value="set">Set balance</option></select></label>
+      </div>
+      {movementError && <p role="alert" className="text-sm text-red-300 mb-2">{movementError}</p>}
+      {movementLoading ? <p className="text-sm text-slate-500">Loading movement history…</p> : movements.length === 0 ? <p className="text-sm text-slate-500 py-4">No movements match these filters.</p> : <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-xs uppercase text-slate-500 border-b border-surface-border"><tr><th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Product / SKU</th><th className="py-2 pr-3">Type</th><th className="py-2 pr-3">Change</th><th className="py-2 pr-3">Balance</th><th className="py-2 pr-3">Reason</th><th className="py-2">By</th></tr></thead><tbody>{movements.map((entry) => <tr key={entry._id} className="border-b border-surface-border/70"><td className="py-2 pr-3 whitespace-nowrap text-slate-400">{new Date(entry.createdAt).toLocaleString()}</td><td className="py-2 pr-3"><p className="text-slate-200">{entry.inventory?.product_name || "Archived product"}</p><p className="text-xs text-slate-500">{entry.inventory?.sku || "—"}</p></td><td className="py-2 pr-3 uppercase text-xs text-indigo-300">{entry.movementType}</td><td className="py-2 pr-3 text-slate-200">{entry.quantity}</td><td className="py-2 pr-3 text-slate-300">{entry.previousQuantity} → {entry.newQuantity}</td><td className="py-2 pr-3 text-slate-400">{entry.reason}</td><td className="py-2 text-slate-400">{entry.performedBy?.name || "—"}</td></tr>)}</tbody></table></div>}
+      <div className="flex items-center justify-between mt-3"><p className="text-xs text-slate-500">{movementPagination?.total || 0} matching movements · Page {movementPagination?.page || 1} of {movementPagination?.pages || 1}</p><div className="flex gap-2"><button disabled={!movementPagination || movementPage <= 1 || movementLoading} onClick={() => setMovementPage((value) => value - 1)} className="rounded-lg border border-surface-border px-3 py-1.5 text-xs text-slate-300 disabled:opacity-30">Previous</button><button disabled={!movementPagination || movementPage >= movementPagination.pages || movementLoading} onClick={() => setMovementPage((value) => value + 1)} className="rounded-lg border border-surface-border px-3 py-1.5 text-xs text-slate-300 disabled:opacity-30">Next</button></div></div>
+    </div>
+  </section>;
+}
 
 function PurchaseOrdersPanel({ inventory, suppliers, onChanged }) {
   const [orders, setOrders] = useState([]);
@@ -530,7 +633,7 @@ export default function App() {
           </div>}
         </section>
 
-        <PurchaseOrdersPanel inventory={items} suppliers={suppliers} onChanged={refreshList} />
+        <StockReportsPanel />\n\n        <PurchaseOrdersPanel inventory={items} suppliers={suppliers} onChanged={refreshList} />
 
         <section className="card p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
           <form onSubmit={applySearch} className="flex gap-2 flex-1">
