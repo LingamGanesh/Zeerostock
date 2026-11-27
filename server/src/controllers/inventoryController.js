@@ -31,7 +31,7 @@ const listInventory = asyncHandler(async (req, res) => {
     }
     filter.supplier = req.query.supplier;
   }
-  if (req.query.lowStock === "true") filter.$expr = { $lte: ["$quantity", 5] };
+  if (req.query.lowStock === "true") filter.$expr = { $and: [{ $gt: ["$quantity", 0] }, { $lte: ["$quantity", 5] }] };
 
   const [items, total] = await Promise.all([
     Inventory.find(filter)
