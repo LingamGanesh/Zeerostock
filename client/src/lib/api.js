@@ -116,3 +116,15 @@ export async function getInventoryMovements(id, { page = 1, limit = 20 } = {}) {
 export async function getDashboardSummary() {
   return request("/api/v2/dashboard/summary");
 }
+
+export async function createSupplier(data) {
+  return request("/api/suppliers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateSupplier(id, data) {
+  return request(`/api/suppliers/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export async function archiveSupplier(id) {
+  return request(`/api/suppliers/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
