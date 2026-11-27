@@ -53,6 +53,12 @@ async function adjustStock({ inventoryId, direction, quantity, reason, reference
         .session(session);
     });
     return updatedInventory;
+  } catch (error) {
+    if (/transaction numbers are only allowed|transaction is not supported|replica set/i.test(error.message || "")) {
+      error.statusCode = 503;
+      error.message = "Stock movement auditing requires MongoDB running as a replica set or MongoDB Atlas.";
+    }
+    throw error;
   } finally {
     await session.endSession();
   }
