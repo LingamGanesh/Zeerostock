@@ -1,6 +1,6 @@
 const { z } = require("zod");
 
-const objectId = z.string().regex(/^[a-f\\d]{24}$/i, "Must be a valid ID");
+const objectId = z.string().regex(/^[a-f0-9]{24}$/i, "Must be a valid ID");
 const createInventorySchema = z.object({
   product_name: z.string().trim().min(2).max(150),
   sku: z.string().trim().min(2).max(64).transform((value) => value.toUpperCase()),
